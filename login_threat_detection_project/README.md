@@ -142,42 +142,10 @@ Attack-IP logins missed by the model:            2,522
 Attack-IP logins correctly detected:            17,385
 ```
 
-## Why accuracy is not the only important metric
 
-Login threat detection is an imbalanced cybersecurity problem because suspicious logins are much rarer
-than normal logins. Because of this, accuracy alone can be misleading. A model could predict almost every
-login as normal and still get high accuracy while missing most attacks.
-
-For this project, the most important metrics are:
-
-- Recall: how many suspicious logins the model successfully catches
-- Precision: how many flagged logins are actually suspicious
-- F1-score: the balance between precision and recall
-- PR-AUC: performance on the precision-recall tradeoff
-- ROC-AUC: how well the model separates normal and suspicious logins overall
-
-## Notes for your report
-
-Use wording like this:
-
-> This project uses the public Login Data Set for Risk-Based Authentication, a privacy-preserving dataset
-> synthesized from real-world login behavior. The model analyzes login context features such as timestamp,
-> country, region, city, ASN, device type, browser, operating system, login success, and round-trip time to
-> classify whether a login attempt is suspicious. Because account-takeover examples were extremely rare in
-> the sampled dataset, the project uses `Is Attack IP` as the main prediction target.
-
-For the results section, use wording like this:
-
-> The Random Forest model achieved 85.58% accuracy, 87.33% recall for attack-IP logins, 54.18% precision,
-> an F1-score of 0.6687, a PR-AUC of 0.6875, and a ROC-AUC of 0.9221 on the balanced test set. These results
-> show that the model is effective at catching most suspicious login attempts, although it also produces
-> some false positives.
 
 ## Important limitations
 
 - The dataset is synthesized from real-world login behavior, not raw production login data.
-- The model is for educational and research purposes only.
-- This model should not be deployed in a real security system without professional validation.
 - The test set is balanced through sampling, so the results should be described as results on a balanced test set.
-- Login behavior data can be highly imbalanced, so recall, precision, F1-score, PR-AUC, and ROC-AUC matter more than plain accuracy.
 - The model may produce false positives, meaning some normal logins may be incorrectly flagged as suspicious.
