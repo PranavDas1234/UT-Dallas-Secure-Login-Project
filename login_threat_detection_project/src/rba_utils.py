@@ -8,6 +8,10 @@ MODEL_DIR = PROJECT_ROOT / "models"
 REPORT_DIR = PROJECT_ROOT / "reports"
 DEFAULT_CSV_PATH = DATA_DIR / "rba-dataset.csv"
 
+# NOTE: ASN moved from NUMERIC_FEATURES to CATEGORICAL_FEATURES.
+# ASN is an identifier (which network the login came from), not a magnitude.
+# Treating it as numeric implied a false ordering (e.g. "ASN < 15000") that
+# doesn't mean anything real.
 BASE_FEATURES = [
     "Country", "Region", "City", "ASN",
     "OS Name and Version", "Browser Name and Version", "Device Type",
@@ -16,12 +20,12 @@ BASE_FEATURES = [
 ]
 
 CATEGORICAL_FEATURES = [
-    "Country", "Region", "City", "OS Name and Version",
-    "Browser Name and Version", "Device Type",
+    "Country", "Region", "City", "ASN",
+    "OS Name and Version", "Browser Name and Version", "Device Type",
 ]
 
 NUMERIC_FEATURES = [
-    "ASN", "Round-Trip Time [ms]", "Login Successful",
+    "Round-Trip Time [ms]", "Login Successful",
     "login_hour", "login_dayofweek", "is_weekend",
 ]
 
@@ -60,8 +64,15 @@ def parse_login_timestamp(series: pd.Series) -> pd.Series:
 def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     dt = parse_login_timestamp(df["Login Timestamp"])
-    df["login_hour"] = dt.dt.hour.fillna(-1).astype(int)
-    df["login_dayofweek"] = dt.dt.dayofweek.fillna(-1).astype(int)
+    # NOTE: missing hour/day used to be filled with -1 and then scaled
+    # numerically alongside real 0-23 / 0-6 values. That made "-1" look
+    # like a legitimate value to StandardScaler. We now keep it as NaN
+    # (so SimpleImputer's median strategy handles it properly) and add
+    # an explicit is_missing_timestamp flag so the model can distinguish
+    # "unknown time" from "midnight".
+    df["login_hour"] = dt.dt.hour.astype("float")
+    df["login_dayofweek"] = dt.dt.dayofweek.astype("float")
+    df["is_missing_timestamp"] = dt.isna().astype(int)
     df["is_weekend"] = df["login_dayofweek"].isin([5, 6]).astype(int)
     return df
 
@@ -71,15 +82,18 @@ def basic_clean(df: pd.DataFrame) -> pd.DataFrame:
         if col in df.columns:
             df[col] = parse_bool_series(df[col])
     df = add_time_features(df)
-    for col in ["ASN", "Round-Trip Time [ms]"]:
+    for col in ["Round-Trip Time [ms]"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     for col in CATEGORICAL_FEATURES:
         if col in df.columns:
-            df[col] = df[col].astype(str).replace({"nan":"Unknown", "None":"Unknown"}).fillna("Unknown")
+            df[col] = df[col].astype(str).replace({"nan": "Unknown", "None": "Unknown"}).fillna("Unknown")
     return df
 
 def reduce_rare_categories(df: pd.DataFrame, categorical_cols, top_n=30):
+    """Fit category maps. Call this on TRAINING DATA ONLY, then use
+    apply_category_maps() on validation/test/inference data so no
+    information from those sets leaks into which categories are kept."""
     df = df.copy()
     category_maps = {}
     for col in categorical_cols:
