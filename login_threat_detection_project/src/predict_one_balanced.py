@@ -15,6 +15,7 @@ def predict_login(login_event: dict):
     category_maps = bundle["category_maps"]
     feature_columns = bundle["feature_columns"]
     df = basic_clean(pd.DataFrame([login_event]))
+    missing_fields = [col for col in feature_columns if col not in df.columns or pd.isna(df[col]).all()]
     for col in feature_columns:
         if col not in df.columns:
             df[col] = None
@@ -27,6 +28,8 @@ def predict_login(login_event: dict):
         "prediction": prediction,
         "risk_probability": probability,
         "label": "Suspicious / Malicious" if prediction == 1 else "Normal / Low Risk",
+        "missing_fields": missing_fields,
+        "note": "risk_probability is a model score, not a calibrated true probability" if pipeline.named_steps["classifier"].__class__.__name__ == "RandomForestClassifier" else None,
     }
 
 def main():
@@ -54,6 +57,10 @@ def main():
     print(f"Label: {result['label']}")
     print(f"Risk probability: {result['risk_probability']:.4f}")
     print(f"Decision threshold: {result['threshold']:.4f}")
+    if result["missing_fields"]:
+        print(f"Missing fields (prediction may be less reliable): {result['missing_fields']}")
+    if result["note"]:
+        print(f"Note: {result['note']}")
 
 if __name__ == "__main__":
     main()
